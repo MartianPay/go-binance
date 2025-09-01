@@ -2,6 +2,7 @@ package main
 
 import (
 	"bufio"
+	"encoding/json"
 	"fmt"
 	"os"
 	"strconv"
@@ -11,6 +12,7 @@ import (
 	"github.com/MartianPay/go-binance"
 	"github.com/MartianPay/go-binance/models"
 )
+
 
 func main() {
 	// 从环境变量读取密钥
@@ -92,37 +94,15 @@ func viewAccountInfo(client *binance.BinanceClient) {
 		return
 	}
 
-	fmt.Printf("Account Type: %s\n", info.AccountType)
-	fmt.Printf("Can Trade: %v\n", info.CanTrade)
-	fmt.Printf("Can Withdraw: %v\n", info.CanWithdraw)
-	fmt.Printf("Can Deposit: %v\n", info.CanDeposit)
+	fmt.Println("\n✅ Account info retrieved!")
 	
-	fmt.Printf("\nCommissions:\n")
-	fmt.Printf("  Maker: %d (0.%02d%%)\n", info.MakerCommission, info.MakerCommission)
-	fmt.Printf("  Taker: %d (0.%02d%%)\n", info.TakerCommission, info.TakerCommission)
-
-	fmt.Printf("\nPermissions: %v\n", info.Permissions)
-
-	fmt.Printf("\n💼 Balances (non-zero only):\n")
-	hasBalance := false
-	for _, balance := range info.Balances {
-		free, _ := strconv.ParseFloat(balance.Free, 64)
-		locked, _ := strconv.ParseFloat(balance.Locked, 64)
-		
-		if free > 0 || locked > 0 {
-			hasBalance = true
-			fmt.Printf("  %s:\n", balance.Asset)
-			if free > 0 {
-				fmt.Printf("    Free: %s\n", balance.Free)
-			}
-			if locked > 0 {
-				fmt.Printf("    Locked: %s\n", balance.Locked)
-			}
-		}
-	}
-
-	if !hasBalance {
-		fmt.Println("  No balances found")
+	// Print raw JSON response
+	jsonBytes, err := json.MarshalIndent(info, "", "  ")
+	if err != nil {
+		fmt.Printf("Error marshaling response: %v\n", err)
+	} else {
+		fmt.Println("\n📊 Full Response (JSON):")
+		fmt.Println(string(jsonBytes))
 	}
 }
 
@@ -149,10 +129,15 @@ func viewOpenOrders(client *binance.BinanceClient, reader *bufio.Reader) {
 		return
 	}
 
-	fmt.Printf("\n📊 Found %d open orders:\n\n", len(orders))
+	fmt.Printf("\n✅ Found %d open orders!\n", len(orders))
 	
-	for i, order := range orders {
-		displayOrder(i+1, order)
+	// Print raw JSON response
+	jsonBytes, err := json.MarshalIndent(orders, "", "  ")
+	if err != nil {
+		fmt.Printf("Error marshaling response: %v\n", err)
+	} else {
+		fmt.Println("\n📊 Full Response (JSON):")
+		fmt.Println(string(jsonBytes))
 	}
 }
 
@@ -210,17 +195,60 @@ func createOrder(client *binance.BinanceClient, reader *bufio.Reader) {
 		needPrice = true
 	}
 
-	// 4. Quantity
-	fmt.Print("\nEnter quantity: ")
-	quantity, _ := reader.ReadString('\n')
-	quantity = strings.TrimSpace(quantity)
-
+	// 4. Quantity or Quote Order Quantity
 	req := models.NewOrderRequest{
 		Symbol:           symbol,
 		Side:             side,
 		Type:             orderType,
-		Quantity:         quantity,
 		NewOrderRespType: models.OrderResponseTypeFULL,
+	}
+
+	if orderType == models.OrderTypeMarket {
+		// For MARKET orders, allow choice between quantity and quoteOrderQty
+		fmt.Println("\nFor MARKET orders, choose quantity type:")
+		fmt.Println("1. Specify base asset quantity (e.g., amount of BTC)")
+		fmt.Println("2. Specify quote asset amount (e.g., amount of USDT to spend/receive)")
+		fmt.Print("✏️  Select (1-2, default 1): ")
+		qtyTypeInput, _ := reader.ReadString('\n')
+		qtyTypeInput = strings.TrimSpace(qtyTypeInput)
+		
+		if qtyTypeInput == "2" {
+			// Use quoteOrderQty
+			// Parse symbol to get quote asset (last part of pair, e.g., USDT in BTCUSDT)
+			quoteAsset := "quote asset"
+			if len(symbol) >= 4 {
+				// Common quote assets
+				if strings.HasSuffix(symbol, "USDT") {
+					quoteAsset = "USDT"
+				} else if strings.HasSuffix(symbol, "BUSD") {
+					quoteAsset = "BUSD"
+				} else if strings.HasSuffix(symbol, "BTC") {
+					quoteAsset = "BTC"
+				} else if strings.HasSuffix(symbol, "ETH") {
+					quoteAsset = "ETH"
+				} else if strings.HasSuffix(symbol, "BNB") {
+					quoteAsset = "BNB"
+				}
+			}
+			
+			if side == models.SideBuy {
+				fmt.Printf("\nEnter %s amount to spend (quoteOrderQty): ", quoteAsset)
+			} else {
+				fmt.Printf("\nEnter %s amount to receive (quoteOrderQty): ", quoteAsset)
+			}
+			quoteOrderQty, _ := reader.ReadString('\n')
+			req.QuoteOrderQty = strings.TrimSpace(quoteOrderQty)
+		} else {
+			// Use regular quantity
+			fmt.Print("\nEnter base asset quantity: ")
+			quantity, _ := reader.ReadString('\n')
+			req.Quantity = strings.TrimSpace(quantity)
+		}
+	} else {
+		// For LIMIT and other orders, use regular quantity
+		fmt.Print("\nEnter quantity: ")
+		quantity, _ := reader.ReadString('\n')
+		req.Quantity = strings.TrimSpace(quantity)
 	}
 
 	// 5. Price (for limit orders)
@@ -238,17 +266,33 @@ func createOrder(client *binance.BinanceClient, reader *bufio.Reader) {
 		req.StopPrice = strings.TrimSpace(stopPrice)
 	}
 
-	// 7. Confirm
+	// 7. Client Order ID (optional)
+	fmt.Print("\nEnter custom Client Order ID (optional, press Enter to skip): ")
+	clientOrderId, _ := reader.ReadString('\n')
+	clientOrderId = strings.TrimSpace(clientOrderId)
+	if clientOrderId != "" {
+		req.NewClientOrderId = clientOrderId
+	}
+
+	// 8. Confirm
 	fmt.Println("\n📋 Order Summary:")
 	fmt.Printf("  Symbol: %s\n", req.Symbol)
 	fmt.Printf("  Side: %s\n", req.Side)
 	fmt.Printf("  Type: %s\n", req.Type)
-	fmt.Printf("  Quantity: %s\n", req.Quantity)
+	if req.Quantity != "" {
+		fmt.Printf("  Quantity: %s\n", req.Quantity)
+	}
+	if req.QuoteOrderQty != "" {
+		fmt.Printf("  Quote Order Qty: %s\n", req.QuoteOrderQty)
+	}
 	if req.Price != "" {
 		fmt.Printf("  Price: %s\n", req.Price)
 	}
 	if req.StopPrice != "" {
 		fmt.Printf("  Stop Price: %s\n", req.StopPrice)
+	}
+	if req.NewClientOrderId != "" {
+		fmt.Printf("  Client Order ID: %s\n", req.NewClientOrderId)
 	}
 
 	fmt.Print("\n⚠️  Confirm order? (yes/no): ")
@@ -258,7 +302,7 @@ func createOrder(client *binance.BinanceClient, reader *bufio.Reader) {
 		return
 	}
 
-	// 8. Execute
+	// 9. Execute
 	fmt.Println("\n🚀 Placing order...")
 	order, err := client.Trading.NewOrder(req)
 	if err != nil {
@@ -266,20 +310,15 @@ func createOrder(client *binance.BinanceClient, reader *bufio.Reader) {
 		return
 	}
 
-	fmt.Printf("\n✅ Order placed successfully!\n")
-	fmt.Printf("  Order ID: %d\n", order.OrderId)
-	fmt.Printf("  Client Order ID: %s\n", order.ClientOrderId)
-	fmt.Printf("  Status: %s\n", order.Status)
-	fmt.Printf("  Price: %s\n", order.Price)
-	fmt.Printf("  Original Qty: %s\n", order.OrigQty)
-	fmt.Printf("  Executed Qty: %s\n", order.ExecutedQty)
-
-	if len(order.Fills) > 0 {
-		fmt.Println("\n📊 Fills:")
-		for _, fill := range order.Fills {
-			fmt.Printf("  Price: %s, Qty: %s, Commission: %s %s\n",
-				fill.Price, fill.Qty, fill.Commission, fill.CommissionAsset)
-		}
+	fmt.Println("\n✅ Order placed successfully!")
+	
+	// Print raw JSON response
+	jsonBytes, err := json.MarshalIndent(order, "", "  ")
+	if err != nil {
+		fmt.Printf("Error marshaling response: %v\n", err)
+	} else {
+		fmt.Println("\n📊 Full Response (JSON):")
+		fmt.Println(string(jsonBytes))
 	}
 }
 
@@ -320,8 +359,16 @@ func queryOrderStatus(client *binance.BinanceClient, reader *bufio.Reader) {
 		return
 	}
 
-	fmt.Println("\n📊 Order Details:")
-	displayOrderDetails(*order)
+	fmt.Println("\n✅ Order found!")
+	
+	// Print raw JSON response
+	jsonBytes, err := json.MarshalIndent(order, "", "  ")
+	if err != nil {
+		fmt.Printf("Error marshaling response: %v\n", err)
+	} else {
+		fmt.Println("\n📊 Full Response (JSON):")
+		fmt.Println(string(jsonBytes))
+	}
 
 	// Monitor status if still active
 	if order.Status == models.OrderStatusNew || order.Status == models.OrderStatusPartiallyFilled {
@@ -398,12 +445,16 @@ func cancelOrder(client *binance.BinanceClient, reader *bufio.Reader) {
 		return
 	}
 
-	fmt.Printf("\n✅ Order cancelled successfully!\n")
-	fmt.Printf("  Order ID: %d\n", result.OrderId)
-	fmt.Printf("  Symbol: %s\n", result.Symbol)
-	fmt.Printf("  Status: %s\n", result.Status)
-	fmt.Printf("  Original Qty: %s\n", result.OrigQty)
-	fmt.Printf("  Executed Qty: %s\n", result.ExecutedQty)
+	fmt.Println("\n✅ Order cancelled successfully!")
+	
+	// Print raw JSON response
+	jsonBytes, err := json.MarshalIndent(result, "", "  ")
+	if err != nil {
+		fmt.Printf("Error marshaling response: %v\n", err)
+	} else {
+		fmt.Println("\n📊 Full Response (JSON):")
+		fmt.Println(string(jsonBytes))
+	}
 }
 
 func viewOrderHistory(client *binance.BinanceClient, reader *bufio.Reader) {
@@ -451,27 +502,15 @@ func viewOrderHistory(client *binance.BinanceClient, reader *bufio.Reader) {
 		return
 	}
 
-	// Group by status
-	statusGroups := make(map[models.OrderStatus][]models.Order)
-	for _, order := range orders {
-		statusGroups[order.Status] = append(statusGroups[order.Status], order)
-	}
-
-	fmt.Printf("\n📊 Found %d orders:\n", len(orders))
+	fmt.Printf("\n✅ Found %d orders!\n", len(orders))
 	
-	// Display summary
-	for status, orderList := range statusGroups {
-		fmt.Printf("  %s: %d orders\n", status, len(orderList))
-	}
-
-	// Display orders
-	fmt.Println("\n📋 Order Details:")
-	for i, order := range orders {
-		if i >= 20 { // Show only first 20 in detail
-			fmt.Printf("\n... and %d more orders\n", len(orders)-20)
-			break
-		}
-		displayOrder(i+1, order)
+	// Print raw JSON response
+	jsonBytes, err := json.MarshalIndent(orders, "", "  ")
+	if err != nil {
+		fmt.Printf("Error marshaling response: %v\n", err)
+	} else {
+		fmt.Println("\n📊 Full Response (JSON):")
+		fmt.Println(string(jsonBytes))
 	}
 }
 
@@ -511,52 +550,15 @@ func viewMyTrades(client *binance.BinanceClient, reader *bufio.Reader) {
 		return
 	}
 
-	fmt.Printf("\n📊 Found %d trades:\n\n", len(trades))
+	fmt.Printf("\n✅ Found %d trades!\n", len(trades))
 	
-	var totalVolume float64
-	commissionAssets := make(map[string]float64)
-
-	for i, trade := range trades {
-		tradeTime := time.Unix(trade.Time/1000, 0)
-		
-		side := "SELL"
-		if trade.IsBuyer {
-			side = "BUY"
-		}
-		
-		maker := "TAKER"
-		if trade.IsMaker {
-			maker = "MAKER"
-		}
-
-		fmt.Printf("%d. %s | %s %s | Price: %s | Qty: %s | %s\n",
-			i+1,
-			tradeTime.Format("2006-01-02 15:04:05"),
-			side,
-			trade.Symbol,
-			trade.Price,
-			trade.Qty,
-			maker)
-
-		if trade.Commission != "" {
-			fmt.Printf("   Commission: %s %s | Order ID: %d\n",
-				trade.Commission, trade.CommissionAsset, trade.OrderId)
-			
-			commission, _ := strconv.ParseFloat(trade.Commission, 64)
-			commissionAssets[trade.CommissionAsset] += commission
-		}
-
-		volume, _ := strconv.ParseFloat(trade.QuoteQty, 64)
-		totalVolume += volume
-	}
-
-	// Summary
-	fmt.Printf("\n📈 Summary:\n")
-	fmt.Printf("  Total trades: %d\n", len(trades))
-	fmt.Printf("  Total volume: %.2f\n", totalVolume)
-	fmt.Printf("  Commissions paid:\n")
-	for asset, amount := range commissionAssets {
-		fmt.Printf("    %s: %.8f\n", asset, amount)
+	// Print raw JSON response
+	jsonBytes, err := json.MarshalIndent(trades, "", "  ")
+	if err != nil {
+		fmt.Printf("Error marshaling response: %v\n", err)
+	} else {
+		fmt.Println("\n📊 Full Response (JSON):")
+		fmt.Println(string(jsonBytes))
 	}
 }
 
@@ -591,15 +593,34 @@ func testOrder(client *binance.BinanceClient, reader *bufio.Reader) {
 		needPrice = false
 	}
 
-	fmt.Print("Quantity: ")
-	quantity, _ := reader.ReadString('\n')
-	quantity = strings.TrimSpace(quantity)
-
 	req := models.NewOrderRequest{
 		Symbol:   symbol,
 		Side:     side,
 		Type:     orderType,
-		Quantity: quantity,
+	}
+
+	// Handle quantity input based on order type
+	if orderType == models.OrderTypeMarket {
+		fmt.Println("\nFor MARKET orders, choose quantity type:")
+		fmt.Println("1. Specify base asset quantity")
+		fmt.Println("2. Specify quote asset amount (quoteOrderQty)")
+		fmt.Print("✏️  Select (1-2, default 1): ")
+		qtyTypeInput, _ := reader.ReadString('\n')
+		qtyTypeInput = strings.TrimSpace(qtyTypeInput)
+		
+		if qtyTypeInput == "2" {
+			fmt.Print("Enter quote order quantity: ")
+			quoteOrderQty, _ := reader.ReadString('\n')
+			req.QuoteOrderQty = strings.TrimSpace(quoteOrderQty)
+		} else {
+			fmt.Print("Enter quantity: ")
+			quantity, _ := reader.ReadString('\n')
+			req.Quantity = strings.TrimSpace(quantity)
+		}
+	} else {
+		fmt.Print("Quantity: ")
+		quantity, _ := reader.ReadString('\n')
+		req.Quantity = strings.TrimSpace(quantity)
 	}
 
 	if needPrice {

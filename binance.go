@@ -10,6 +10,8 @@ type BinanceClient struct {
 	Deposit    *endpoints.DepositService
 	Withdrawal *endpoints.WithdrawalService
 	Account    *endpoints.AccountService
+	Market     *endpoints.MarketDataService
+	Trading    *endpoints.TradingService
 }
 
 func NewClient(apiKey, secretKey string) *BinanceClient {
@@ -20,6 +22,8 @@ func NewClient(apiKey, secretKey string) *BinanceClient {
 		Deposit:    endpoints.NewDepositService(c),
 		Withdrawal: endpoints.NewWithdrawalService(c),
 		Account:    endpoints.NewAccountService(c),
+		Market:     endpoints.NewMarketDataService(c),
+		Trading:    endpoints.NewTradingService(c),
 	}
 }
 

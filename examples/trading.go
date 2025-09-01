@@ -3,7 +3,6 @@ package main
 import (
 	"bufio"
 	"fmt"
-	"log"
 	"os"
 	"strconv"
 	"strings"
@@ -511,7 +510,7 @@ func viewMyTrades(client *binance.BinanceClient, reader *bufio.Reader) {
 
 	fmt.Printf("\n📊 Found %d trades:\n\n", len(trades))
 	
-	var totalVolume, totalCommission float64
+	var totalVolume float64
 	commissionAssets := make(map[string]float64)
 
 	for i, trade := range trades {

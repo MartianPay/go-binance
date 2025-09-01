@@ -173,13 +173,13 @@ type AllOrdersRequest struct {
 	RecvWindow int64     `json:"recvWindow,omitempty"`
 }
 
-// AccountInfoRequest represents account information request
-type AccountInfoRequest struct {
+// TradingAccountInfoRequest represents account information request
+type TradingAccountInfoRequest struct {
 	RecvWindow int64 `json:"recvWindow,omitempty"`
 }
 
-// AccountInfo represents account information
-type AccountInfo struct {
+// TradingAccountInfo represents trading account information
+type TradingAccountInfo struct {
 	MakerCommission  int64     `json:"makerCommission"`
 	TakerCommission  int64     `json:"takerCommission"`
 	BuyerCommission  int64     `json:"buyerCommission"`

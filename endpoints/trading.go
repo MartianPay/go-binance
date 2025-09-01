@@ -204,7 +204,7 @@ func (s *TradingService) GetAllOrders(req models.AllOrdersRequest) ([]models.Ord
 
 // GetAccountInfo gets current account information
 // API endpoint: GET /api/v3/account
-func (s *TradingService) GetAccountInfo(recvWindow int64) (*models.AccountInfo, error) {
+func (s *TradingService) GetAccountInfo(recvWindow int64) (*models.TradingAccountInfo, error) {
 	params := make(map[string]string)
 	
 	if recvWindow > 0 {
@@ -216,7 +216,7 @@ func (s *TradingService) GetAccountInfo(recvWindow int64) (*models.AccountInfo, 
 		return nil, fmt.Errorf("failed to get account info: %w", err)
 	}
 	
-	var info models.AccountInfo
+	var info models.TradingAccountInfo
 	if err := json.Unmarshal(resp, &info); err != nil {
 		return nil, fmt.Errorf("failed to unmarshal account info: %w", err)
 	}

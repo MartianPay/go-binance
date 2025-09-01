@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"strconv"
+	"strings"
 
 	"github.com/MartianPay/go-binance/client"
 	"github.com/MartianPay/go-binance/models"
@@ -15,6 +16,38 @@ type MarketDataService struct {
 
 func NewMarketDataService(c *client.Client) *MarketDataService {
 	return &MarketDataService{client: c}
+}
+
+// GetExchangeInfo retrieves exchange trading rules and symbol information
+// API endpoint: GET /api/v3/exchangeInfo
+func (s *MarketDataService) GetExchangeInfo(req models.ExchangeInfoRequest) (*models.ExchangeInfo, error) {
+	params := make(map[string]string)
+	
+	if req.Symbol != "" {
+		params["symbol"] = req.Symbol
+	} else if len(req.Symbols) > 0 {
+		// Format: ["BTCUSDT","BNBUSDT"]
+		symbols := `["` + strings.Join(req.Symbols, `","`) + `"]`
+		params["symbols"] = symbols
+	}
+	
+	if len(req.Permissions) > 0 {
+		// Format: ["SPOT","MARGIN"]
+		permissions := `["` + strings.Join(req.Permissions, `","`) + `"]`
+		params["permissions"] = permissions
+	}
+	
+	resp, err := s.client.Get("/api/v3/exchangeInfo", params, false)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get exchange info: %w", err)
+	}
+	
+	var info models.ExchangeInfo
+	if err := json.Unmarshal(resp, &info); err != nil {
+		return nil, fmt.Errorf("failed to unmarshal exchange info: %w", err)
+	}
+	
+	return &info, nil
 }
 
 // GetKlines retrieves kline/candlestick data for a symbol

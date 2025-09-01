@@ -227,3 +227,104 @@ type Trade struct {
 	IsMaker         bool   `json:"isMaker"`
 	IsBestMatch     bool   `json:"isBestMatch"`
 }
+
+// ExchangeInfoRequest represents exchange info request
+type ExchangeInfoRequest struct {
+	Symbol     string   `json:"symbol,omitempty"`     // Single symbol
+	Symbols    []string `json:"symbols,omitempty"`    // Multiple symbols
+	Permissions []string `json:"permissions,omitempty"` // Filter by permissions
+}
+
+// ExchangeInfo represents exchange information
+type ExchangeInfo struct {
+	Timezone        string           `json:"timezone"`
+	ServerTime      int64            `json:"serverTime"`
+	RateLimits      []RateLimit      `json:"rateLimits"`
+	ExchangeFilters []interface{}   `json:"exchangeFilters"`
+	Symbols         []SymbolInfo     `json:"symbols"`
+}
+
+// RateLimit represents rate limit info
+type RateLimit struct {
+	RateLimitType string `json:"rateLimitType"`
+	Interval      string `json:"interval"`
+	IntervalNum   int    `json:"intervalNum"`
+	Limit         int    `json:"limit"`
+}
+
+// SymbolInfo represents symbol trading rules and information
+type SymbolInfo struct {
+	Symbol                     string                   `json:"symbol"`
+	Status                     string                   `json:"status"`
+	BaseAsset                  string                   `json:"baseAsset"`
+	BaseAssetPrecision         int                      `json:"baseAssetPrecision"`
+	QuoteAsset                 string                   `json:"quoteAsset"`
+	QuotePrecision             int                      `json:"quotePrecision"`
+	QuoteAssetPrecision        int                      `json:"quoteAssetPrecision"`
+	BaseCommissionPrecision    int                      `json:"baseCommissionPrecision"`
+	QuoteCommissionPrecision   int                      `json:"quoteCommissionPrecision"`
+	OrderTypes                 []string                 `json:"orderTypes"`
+	IcebergAllowed             bool                     `json:"icebergAllowed"`
+	OcoAllowed                 bool                     `json:"ocoAllowed"`
+	QuoteOrderQtyMarketAllowed bool                     `json:"quoteOrderQtyMarketAllowed"`
+	AllowTrailingStop          bool                     `json:"allowTrailingStop"`
+	CancelReplaceAllowed       bool                     `json:"cancelReplaceAllowed"`
+	IsSpotTradingAllowed       bool                     `json:"isSpotTradingAllowed"`
+	IsMarginTradingAllowed     bool                     `json:"isMarginTradingAllowed"`
+	Filters                    []map[string]interface{} `json:"filters"`
+	Permissions                []string                 `json:"permissions"`
+	DefaultSelfTradePreventionMode string              `json:"defaultSelfTradePreventionMode"`
+	AllowedSelfTradePreventionModes []string          `json:"allowedSelfTradePreventionModes"`
+}
+
+// Common filter types for symbol
+type FilterType string
+
+const (
+	FilterTypePriceFilter       FilterType = "PRICE_FILTER"
+	FilterTypePercentPrice      FilterType = "PERCENT_PRICE"
+	FilterTypeLotSize           FilterType = "LOT_SIZE"
+	FilterTypeMinNotional       FilterType = "MIN_NOTIONAL"
+	FilterTypeNotional          FilterType = "NOTIONAL"
+	FilterTypeIcebergParts      FilterType = "ICEBERG_PARTS"
+	FilterTypeMarketLotSize     FilterType = "MARKET_LOT_SIZE"
+	FilterTypeMaxNumOrders      FilterType = "MAX_NUM_ORDERS"
+	FilterTypeMaxNumAlgoOrders  FilterType = "MAX_NUM_ALGO_ORDERS"
+	FilterTypeMaxNumIcebergOrders FilterType = "MAX_NUM_ICEBERG_ORDERS"
+	FilterTypeMaxPosition       FilterType = "MAX_POSITION"
+	FilterTypeTrailingDelta     FilterType = "TRAILING_DELTA"
+)
+
+// PriceFilter represents PRICE_FILTER
+type PriceFilter struct {
+	FilterType string `json:"filterType"`
+	MinPrice   string `json:"minPrice"`
+	MaxPrice   string `json:"maxPrice"`
+	TickSize   string `json:"tickSize"`
+}
+
+// LotSizeFilter represents LOT_SIZE filter
+type LotSizeFilter struct {
+	FilterType string `json:"filterType"`
+	MinQty     string `json:"minQty"`
+	MaxQty     string `json:"maxQty"`
+	StepSize   string `json:"stepSize"`
+}
+
+// MinNotionalFilter represents MIN_NOTIONAL filter
+type MinNotionalFilter struct {
+	FilterType        string `json:"filterType"`
+	MinNotional       string `json:"minNotional"`
+	ApplyToMarket     bool   `json:"applyToMarket"`
+	AvgPriceMins      int    `json:"avgPriceMins"`
+}
+
+// NotionalFilter represents NOTIONAL filter
+type NotionalFilter struct {
+	FilterType        string `json:"filterType"`
+	MinNotional       string `json:"minNotional"`
+	ApplyMinToMarket  bool   `json:"applyMinToMarket"`
+	MaxNotional       string `json:"maxNotional"`
+	ApplyMaxToMarket  bool   `json:"applyMaxToMarket"`
+	AvgPriceMins      int    `json:"avgPriceMins"`
+}

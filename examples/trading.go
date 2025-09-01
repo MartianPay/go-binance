@@ -54,6 +54,8 @@ func main() {
 		case "8":
 			testOrder(client, reader)
 		case "9":
+			viewTradingRules(client, reader)
+		case "10":
 			fmt.Println("\n👋 Goodbye!")
 			return
 		default:
@@ -76,7 +78,8 @@ func showMainMenu() {
 	fmt.Println("6. View Order History")
 	fmt.Println("7. View My Trades")
 	fmt.Println("8. Test Order (Simulation)")
-	fmt.Println("9. Exit")
+	fmt.Println("9. View Trading Rules (LOT_SIZE, NOTIONAL, etc.)")
+	fmt.Println("10. Exit")
 }
 
 func viewAccountInfo(client *binance.BinanceClient) {
@@ -671,4 +674,210 @@ func displayOrderDetails(order models.Order) {
 	fmt.Printf("  Updated: %s\n", updateTime.Format("2006-01-02 15:04:05"))
 	
 	fmt.Printf("  Is Working: %v\n", order.IsWorking)
+}
+
+func viewTradingRules(client *binance.BinanceClient, reader *bufio.Reader) {
+	fmt.Println("\n📐 Trading Rules & Filters")
+	fmt.Println(strings.Repeat("-", 50))
+	fmt.Println("View trading rules for a symbol (LOT_SIZE, NOTIONAL, etc.)")
+
+	fmt.Print("\nEnter symbol (e.g., BTCUSDT): ")
+	symbol, _ := reader.ReadString('\n')
+	symbol = strings.TrimSpace(strings.ToUpper(symbol))
+
+	if symbol == "" {
+		symbol = "BTCUSDT"
+		fmt.Printf("Using default: %s\n", symbol)
+	}
+
+	fmt.Printf("\n⏳ Fetching trading rules for %s...\n", symbol)
+
+	req := models.ExchangeInfoRequest{
+		Symbol: symbol,
+	}
+
+	info, err := client.Market.GetExchangeInfo(req)
+	if err != nil {
+		fmt.Printf("❌ Error: %v\n", err)
+		return
+	}
+
+	if len(info.Symbols) == 0 {
+		fmt.Printf("❌ Symbol %s not found\n", symbol)
+		return
+	}
+
+	symbolInfo := info.Symbols[0]
+
+	fmt.Printf("\n✅ Trading Rules for %s:\n", symbolInfo.Symbol)
+	fmt.Println(strings.Repeat("=", 60))
+
+	// Basic Info
+	fmt.Printf("\n📊 Basic Information:\n")
+	fmt.Printf("  Status: %s\n", symbolInfo.Status)
+	fmt.Printf("  Base Asset: %s (Precision: %d)\n", symbolInfo.BaseAsset, symbolInfo.BaseAssetPrecision)
+	fmt.Printf("  Quote Asset: %s (Precision: %d)\n", symbolInfo.QuoteAsset, symbolInfo.QuoteAssetPrecision)
+	fmt.Printf("  Allowed Order Types: %v\n", symbolInfo.OrderTypes)
+	fmt.Printf("  Permissions: %v\n", symbolInfo.Permissions)
+
+	// Parse and display filters
+	fmt.Printf("\n🔧 Trading Filters:\n")
+	for _, filter := range symbolInfo.Filters {
+		filterType, ok := filter["filterType"].(string)
+		if !ok {
+			continue
+		}
+
+		switch filterType {
+		case "PRICE_FILTER":
+			fmt.Printf("\n  💰 PRICE_FILTER:\n")
+			if minPrice, ok := filter["minPrice"].(string); ok {
+				fmt.Printf("    Min Price: %s\n", minPrice)
+			}
+			if maxPrice, ok := filter["maxPrice"].(string); ok {
+				fmt.Printf("    Max Price: %s\n", maxPrice)
+			}
+			if tickSize, ok := filter["tickSize"].(string); ok {
+				fmt.Printf("    Tick Size (Price Increment): %s\n", tickSize)
+				fmt.Printf("    ➡️  Price must be a multiple of %s\n", tickSize)
+			}
+
+		case "LOT_SIZE":
+			fmt.Printf("\n  📦 LOT_SIZE (Quantity Rules):\n")
+			if minQty, ok := filter["minQty"].(string); ok {
+				fmt.Printf("    Min Quantity: %s\n", minQty)
+			}
+			if maxQty, ok := filter["maxQty"].(string); ok {
+				fmt.Printf("    Max Quantity: %s\n", maxQty)
+			}
+			if stepSize, ok := filter["stepSize"].(string); ok {
+				fmt.Printf("    Step Size (Quantity Increment): %s\n", stepSize)
+				fmt.Printf("    ➡️  Quantity must be a multiple of %s\n", stepSize)
+			}
+
+		case "MIN_NOTIONAL":
+			fmt.Printf("\n  💵 MIN_NOTIONAL (Minimum Order Value):\n")
+			if minNotional, ok := filter["minNotional"].(string); ok {
+				fmt.Printf("    Min Notional: %s %s\n", minNotional, symbolInfo.QuoteAsset)
+				fmt.Printf("    ➡️  Order value (price × quantity) must be ≥ %s %s\n", minNotional, symbolInfo.QuoteAsset)
+			}
+			if applyToMarket, ok := filter["applyToMarket"].(bool); ok {
+				fmt.Printf("    Apply to Market Orders: %v\n", applyToMarket)
+			}
+			if avgPriceMins, ok := filter["avgPriceMins"].(float64); ok {
+				fmt.Printf("    Average Price Minutes: %.0f\n", avgPriceMins)
+			}
+
+		case "NOTIONAL":
+			fmt.Printf("\n  💴 NOTIONAL (Order Value Range):\n")
+			if minNotional, ok := filter["minNotional"].(string); ok {
+				fmt.Printf("    Min Notional: %s %s\n", minNotional, symbolInfo.QuoteAsset)
+			}
+			if maxNotional, ok := filter["maxNotional"].(string); ok {
+				fmt.Printf("    Max Notional: %s %s\n", maxNotional, symbolInfo.QuoteAsset)
+			}
+			if applyMinToMarket, ok := filter["applyMinToMarket"].(bool); ok {
+				fmt.Printf("    Apply Min to Market: %v\n", applyMinToMarket)
+			}
+			if applyMaxToMarket, ok := filter["applyMaxToMarket"].(bool); ok {
+				fmt.Printf("    Apply Max to Market: %v\n", applyMaxToMarket)
+			}
+			if avgPriceMins, ok := filter["avgPriceMins"].(float64); ok {
+				fmt.Printf("    Average Price Minutes: %.0f\n", avgPriceMins)
+			}
+
+		case "ICEBERG_PARTS":
+			fmt.Printf("\n  🧊 ICEBERG_PARTS:\n")
+			if limit, ok := filter["limit"].(float64); ok {
+				fmt.Printf("    Max Parts: %.0f\n", limit)
+			}
+
+		case "MARKET_LOT_SIZE":
+			fmt.Printf("\n  📈 MARKET_LOT_SIZE (Market Order Quantity):\n")
+			if minQty, ok := filter["minQty"].(string); ok {
+				fmt.Printf("    Min Market Qty: %s\n", minQty)
+			}
+			if maxQty, ok := filter["maxQty"].(string); ok {
+				fmt.Printf("    Max Market Qty: %s\n", maxQty)
+			}
+			if stepSize, ok := filter["stepSize"].(string); ok {
+				fmt.Printf("    Market Step Size: %s\n", stepSize)
+			}
+
+		case "MAX_NUM_ORDERS":
+			fmt.Printf("\n  📝 MAX_NUM_ORDERS:\n")
+			if limit, ok := filter["limit"].(float64); ok {
+				fmt.Printf("    Max Open Orders: %.0f\n", limit)
+			}
+
+		case "MAX_NUM_ALGO_ORDERS":
+			fmt.Printf("\n  🤖 MAX_NUM_ALGO_ORDERS:\n")
+			if limit, ok := filter["limit"].(float64); ok {
+				fmt.Printf("    Max Algo Orders: %.0f\n", limit)
+			}
+
+		case "PERCENT_PRICE":
+			fmt.Printf("\n  📊 PERCENT_PRICE:\n")
+			if multiplierUp, ok := filter["multiplierUp"].(string); ok {
+				fmt.Printf("    Multiplier Up: %s\n", multiplierUp)
+			}
+			if multiplierDown, ok := filter["multiplierDown"].(string); ok {
+				fmt.Printf("    Multiplier Down: %s\n", multiplierDown)
+			}
+			if avgPriceMins, ok := filter["avgPriceMins"].(float64); ok {
+				fmt.Printf("    Average Price Minutes: %.0f\n", avgPriceMins)
+			}
+
+		case "TRAILING_DELTA":
+			fmt.Printf("\n  📉 TRAILING_DELTA:\n")
+			if minTrailingAboveDelta, ok := filter["minTrailingAboveDelta"].(float64); ok {
+				fmt.Printf("    Min Trailing Above Delta: %.0f\n", minTrailingAboveDelta)
+			}
+			if maxTrailingAboveDelta, ok := filter["maxTrailingAboveDelta"].(float64); ok {
+				fmt.Printf("    Max Trailing Above Delta: %.0f\n", maxTrailingAboveDelta)
+			}
+			if minTrailingBelowDelta, ok := filter["minTrailingBelowDelta"].(float64); ok {
+				fmt.Printf("    Min Trailing Below Delta: %.0f\n", minTrailingBelowDelta)
+			}
+			if maxTrailingBelowDelta, ok := filter["maxTrailingBelowDelta"].(float64); ok {
+				fmt.Printf("    Max Trailing Below Delta: %.0f\n", maxTrailingBelowDelta)
+			}
+		}
+	}
+
+	// Trading tips based on rules
+	fmt.Printf("\n💡 Quick Reference for %s:\n", symbol)
+	fmt.Println(strings.Repeat("-", 50))
+	
+	// Find key filters for tips
+	for _, filter := range symbolInfo.Filters {
+		filterType, _ := filter["filterType"].(string)
+		
+		if filterType == "LOT_SIZE" {
+			if minQty, ok := filter["minQty"].(string); ok {
+				if stepSize, ok := filter["stepSize"].(string); ok {
+					fmt.Printf("• Quantity: Min=%s, must be multiple of %s\n", minQty, stepSize)
+				}
+			}
+		}
+		
+		if filterType == "PRICE_FILTER" {
+			if tickSize, ok := filter["tickSize"].(string); ok {
+				fmt.Printf("• Price: Must be multiple of %s\n", tickSize)
+			}
+		}
+		
+		if filterType == "MIN_NOTIONAL" || filterType == "NOTIONAL" {
+			if minNotional, ok := filter["minNotional"].(string); ok {
+				fmt.Printf("• Min Order Value: %s %s (price × quantity)\n", minNotional, symbolInfo.QuoteAsset)
+			}
+		}
+	}
+
+	// Option to check another symbol
+	fmt.Print("\n🔍 Check another symbol? (yes/no): ")
+	another, _ := reader.ReadString('\n')
+	if strings.TrimSpace(strings.ToLower(another)) == "yes" {
+		viewTradingRules(client, reader)
+	}
 }

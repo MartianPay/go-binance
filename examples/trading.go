@@ -360,7 +360,67 @@ func queryOrderStatus(client *binance.BinanceClient, reader *bufio.Reader) {
 	}
 
 	fmt.Println("\n✅ Order found!")
-	
+
+	// Display execution details for filled orders
+	if order.Status == models.OrderStatusFilled {
+		fmt.Println("\n💰 Execution Summary:")
+		fmt.Println(strings.Repeat("-", 40))
+
+		// Parse symbol to identify base and quote assets
+		baseAsset := "base asset"
+		quoteAsset := "quote asset"
+		if len(symbol) >= 4 {
+			// Common quote assets
+			if strings.HasSuffix(symbol, "USDT") {
+				quoteAsset = "USDT"
+				baseAsset = strings.TrimSuffix(symbol, "USDT")
+			} else if strings.HasSuffix(symbol, "BUSD") {
+				quoteAsset = "BUSD"
+				baseAsset = strings.TrimSuffix(symbol, "BUSD")
+			} else if strings.HasSuffix(symbol, "BTC") {
+				quoteAsset = "BTC"
+				baseAsset = strings.TrimSuffix(symbol, "BTC")
+			} else if strings.HasSuffix(symbol, "ETH") {
+				quoteAsset = "ETH"
+				baseAsset = strings.TrimSuffix(symbol, "ETH")
+			} else if strings.HasSuffix(symbol, "BNB") {
+				quoteAsset = "BNB"
+				baseAsset = strings.TrimSuffix(symbol, "BNB")
+			}
+		}
+
+		if order.Side == models.SideBuy {
+			fmt.Printf("  💵 Spent: %s %s\n", order.CummulativeQuoteQty, quoteAsset)
+			fmt.Printf("  📦 Received: %s %s\n", order.ExecutedQty, baseAsset)
+
+			// Calculate average price if both values are available
+			if order.ExecutedQty != "" && order.ExecutedQty != "0" &&
+			   order.CummulativeQuoteQty != "" && order.CummulativeQuoteQty != "0" {
+				executedQty, _ := strconv.ParseFloat(order.ExecutedQty, 64)
+				cummulativeQuoteQty, _ := strconv.ParseFloat(order.CummulativeQuoteQty, 64)
+				if executedQty > 0 {
+					avgPrice := cummulativeQuoteQty / executedQty
+					fmt.Printf("  📊 Average Price: %.8f %s/%s\n", avgPrice, quoteAsset, baseAsset)
+				}
+			}
+		} else {
+			fmt.Printf("  📦 Sold: %s %s\n", order.ExecutedQty, baseAsset)
+			fmt.Printf("  💵 Received: %s %s\n", order.CummulativeQuoteQty, quoteAsset)
+
+			// Calculate average price if both values are available
+			if order.ExecutedQty != "" && order.ExecutedQty != "0" &&
+			   order.CummulativeQuoteQty != "" && order.CummulativeQuoteQty != "0" {
+				executedQty, _ := strconv.ParseFloat(order.ExecutedQty, 64)
+				cummulativeQuoteQty, _ := strconv.ParseFloat(order.CummulativeQuoteQty, 64)
+				if executedQty > 0 {
+					avgPrice := cummulativeQuoteQty / executedQty
+					fmt.Printf("  📊 Average Price: %.8f %s/%s\n", avgPrice, quoteAsset, baseAsset)
+				}
+			}
+		}
+		fmt.Println(strings.Repeat("-", 40))
+	}
+
 	// Print raw JSON response
 	jsonBytes, err := json.MarshalIndent(order, "", "  ")
 	if err != nil {

@@ -78,7 +78,7 @@ func showMainMenu() {
 	fmt.Println("4. Query Order Status")
 	fmt.Println("5. Cancel Order")
 	fmt.Println("6. View Order History")
-	fmt.Println("7. View My Trades")
+	fmt.Println("7. View My Trades (Account Trade List)")
 	fmt.Println("8. Test Order (Simulation)")
 	fmt.Println("9. View Trading Rules (LOT_SIZE, NOTIONAL, etc.)")
 	fmt.Println("10. Exit")
@@ -575,30 +575,72 @@ func viewOrderHistory(client *binance.BinanceClient, reader *bufio.Reader) {
 }
 
 func viewMyTrades(client *binance.BinanceClient, reader *bufio.Reader) {
-	fmt.Println("\n💱 My Trades")
+	fmt.Println("\n💱 My Trades (Account Trade List)")
 	fmt.Println(strings.Repeat("-", 50))
 
 	fmt.Print("Enter symbol (e.g., BTCUSDT): ")
 	symbol, _ := reader.ReadString('\n')
 	symbol = strings.TrimSpace(strings.ToUpper(symbol))
 
-	fmt.Print("Number of days to look back (default 7): ")
-	daysInput, _ := reader.ReadString('\n')
-	daysInput = strings.TrimSpace(daysInput)
-	
-	days := 7
-	if d, err := strconv.Atoi(daysInput); err == nil && d > 0 {
-		days = d
-	}
+	// Ask if user wants to query by Order ID
+	fmt.Print("Query by specific Order ID? (yes/no, default no): ")
+	queryByOrder, _ := reader.ReadString('\n')
+	queryByOrder = strings.TrimSpace(strings.ToLower(queryByOrder))
 
 	req := models.MyTradesRequest{
-		Symbol:    symbol,
-		StartTime: time.Now().AddDate(0, 0, -days),
-		EndTime:   time.Now(),
-		Limit:     100,
+		Symbol: symbol,
 	}
 
-	fmt.Printf("\n⏳ Fetching trades from last %d days...\n", days)
+	if queryByOrder == "yes" || queryByOrder == "y" {
+		// Query by Order ID
+		fmt.Print("Enter Order ID: ")
+		orderIdInput, _ := reader.ReadString('\n')
+		orderIdInput = strings.TrimSpace(orderIdInput)
+
+		if orderId, err := strconv.ParseInt(orderIdInput, 10, 64); err == nil {
+			req.OrderId = orderId
+			fmt.Printf("\n⏳ Fetching trades for Order ID %d...\n", orderId)
+		} else {
+			fmt.Printf("❌ Invalid Order ID: %v\n", err)
+			return
+		}
+	} else {
+		// Query by time range
+		fmt.Print("Number of days to look back (default 7): ")
+		daysInput, _ := reader.ReadString('\n')
+		daysInput = strings.TrimSpace(daysInput)
+
+		days := 7
+		if d, err := strconv.Atoi(daysInput); err == nil && d > 0 {
+			days = d
+		}
+
+		fmt.Print("From Trade ID (optional, press Enter to skip): ")
+		fromIdInput, _ := reader.ReadString('\n')
+		fromIdInput = strings.TrimSpace(fromIdInput)
+
+		if fromIdInput != "" {
+			if fromId, err := strconv.ParseInt(fromIdInput, 10, 64); err == nil {
+				req.FromId = fromId
+			}
+		}
+
+		fmt.Print("Limit (max 1000, default 500): ")
+		limitInput, _ := reader.ReadString('\n')
+		limitInput = strings.TrimSpace(limitInput)
+
+		limit := 500
+		if l, err := strconv.Atoi(limitInput); err == nil && l > 0 && l <= 1000 {
+			limit = l
+		}
+		req.Limit = limit
+
+		req.StartTime = time.Now().AddDate(0, 0, -days)
+		req.EndTime = time.Now()
+
+		fmt.Printf("\n⏳ Fetching trades from last %d days...\n", days)
+	}
+
 	trades, err := client.Trading.GetMyTrades(req)
 	if err != nil {
 		fmt.Printf("❌ Error: %v\n", err)
@@ -606,12 +648,64 @@ func viewMyTrades(client *binance.BinanceClient, reader *bufio.Reader) {
 	}
 
 	if len(trades) == 0 {
-		fmt.Println("📭 No trades found in the specified period")
+		if req.OrderId > 0 {
+			fmt.Printf("📭 No trades found for Order ID %d\n", req.OrderId)
+		} else {
+			fmt.Println("📭 No trades found in the specified period")
+		}
 		return
 	}
 
 	fmt.Printf("\n✅ Found %d trades!\n", len(trades))
-	
+
+	// Calculate statistics
+	var totalBuyQty, totalSellQty float64
+	var totalBuyValue, totalSellValue float64
+	var buyCount, sellCount int
+	var totalCommission = make(map[string]float64)
+
+	for _, trade := range trades {
+		qty, _ := strconv.ParseFloat(trade.Qty, 64)
+		quoteQty, _ := strconv.ParseFloat(trade.QuoteQty, 64)
+		commission, _ := strconv.ParseFloat(trade.Commission, 64)
+
+		if trade.IsBuyer {
+			buyCount++
+			totalBuyQty += qty
+			totalBuyValue += quoteQty
+		} else {
+			sellCount++
+			totalSellQty += qty
+			totalSellValue += quoteQty
+		}
+
+		// Sum commissions by asset
+		totalCommission[trade.CommissionAsset] += commission
+	}
+
+	// Display statistics
+	fmt.Println("\n📊 Trade Statistics:")
+	fmt.Println(strings.Repeat("-", 40))
+	fmt.Printf("  Total Trades: %d\n", len(trades))
+	if buyCount > 0 {
+		fmt.Printf("  Buy Trades: %d (Total Qty: %.8f)\n", buyCount, totalBuyQty)
+		fmt.Printf("  Total Buy Value: %.2f\n", totalBuyValue)
+	}
+	if sellCount > 0 {
+		fmt.Printf("  Sell Trades: %d (Total Qty: %.8f)\n", sellCount, totalSellQty)
+		fmt.Printf("  Total Sell Value: %.2f\n", totalSellValue)
+	}
+
+	if len(totalCommission) > 0 {
+		fmt.Println("\n  Commissions Paid:")
+		for asset, amount := range totalCommission {
+			if amount > 0 {
+				fmt.Printf("    %s: %.8f\n", asset, amount)
+			}
+		}
+	}
+	fmt.Println(strings.Repeat("-", 40))
+
 	// Print raw JSON response
 	jsonBytes, err := json.MarshalIndent(trades, "", "  ")
 	if err != nil {
@@ -756,6 +850,7 @@ func displayOrderDetails(order models.Order) {
 	
 	fmt.Printf("  Is Working: %v\n", order.IsWorking)
 }
+
 
 func viewTradingRules(client *binance.BinanceClient, reader *bufio.Reader) {
 	fmt.Println("\n📐 Trading Rules & Filters")

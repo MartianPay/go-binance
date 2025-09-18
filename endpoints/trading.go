@@ -229,43 +229,44 @@ func (s *TradingService) GetAccountInfo(recvWindow int64) (*models.TradingAccoun
 func (s *TradingService) GetMyTrades(req models.MyTradesRequest) ([]models.Trade, error) {
 	params := make(map[string]string)
 	params["symbol"] = req.Symbol
-	
+
 	if req.OrderId > 0 {
 		params["orderId"] = strconv.FormatInt(req.OrderId, 10)
 	}
-	
+
 	if !req.StartTime.IsZero() {
 		params["startTime"] = strconv.FormatInt(req.StartTime.Unix()*1000, 10)
 	}
-	
+
 	if !req.EndTime.IsZero() {
 		params["endTime"] = strconv.FormatInt(req.EndTime.Unix()*1000, 10)
 	}
-	
+
 	if req.FromId > 0 {
 		params["fromId"] = strconv.FormatInt(req.FromId, 10)
 	}
-	
+
 	if req.Limit > 0 {
 		params["limit"] = strconv.Itoa(req.Limit)
 	}
-	
+
 	if req.RecvWindow > 0 {
 		params["recvWindow"] = strconv.FormatInt(req.RecvWindow, 10)
 	}
-	
+
 	resp, err := s.client.Get("/api/v3/myTrades", params, true)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get my trades: %w", err)
 	}
-	
+
 	var trades []models.Trade
 	if err := json.Unmarshal(resp, &trades); err != nil {
 		return nil, fmt.Errorf("failed to unmarshal trades: %w", err)
 	}
-	
+
 	return trades, nil
 }
+
 
 // buildOrderParams builds parameters for order requests
 func (s *TradingService) buildOrderParams(req models.NewOrderRequest) map[string]string {

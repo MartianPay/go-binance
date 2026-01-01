@@ -39,14 +39,15 @@ type WithdrawalHistory struct {
 }
 
 type WithdrawalHistoryRequest struct {
-	Coin              string    `json:"coin,omitempty"`
-	WithdrawOrderId   string    `json:"withdrawOrderId,omitempty"`
-	Status            int       `json:"status,omitempty"`
-	StartTime         time.Time `json:"startTime,omitempty"`
-	EndTime           time.Time `json:"endTime,omitempty"`
-	Offset            int       `json:"offset,omitempty"`
-	Limit             int       `json:"limit,omitempty"`
-	RecvWindow        int64     `json:"recvWindow,omitempty"`
+	Coin            string    `json:"coin,omitempty"`
+	WithdrawOrderId string    `json:"withdrawOrderId,omitempty"`
+	Status          int       `json:"status,omitempty"`
+	StartTime       time.Time `json:"startTime,omitempty"`
+	EndTime         time.Time `json:"endTime,omitempty"`
+	Offset          int       `json:"offset,omitempty"`
+	Limit           int       `json:"limit,omitempty"`
+	IdList          string    `json:"idList,omitempty"` // 提现ID列表，以逗号分隔，最大支持45个
+	RecvWindow      int64     `json:"recvWindow,omitempty"`
 }
 
 // WithdrawalQuota - 24小时提现限额信息

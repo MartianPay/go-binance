@@ -94,7 +94,11 @@ func (s *WithdrawalService) GetWithdrawalHistory(req models.WithdrawalHistoryReq
 	if req.Limit > 0 {
 		params["limit"] = strconv.Itoa(req.Limit)
 	}
-	
+
+	if req.IdList != "" {
+		params["idList"] = req.IdList
+	}
+
 	if req.RecvWindow > 0 {
 		params["recvWindow"] = strconv.FormatInt(req.RecvWindow, 10)
 	}
